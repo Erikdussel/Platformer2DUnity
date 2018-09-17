@@ -7,7 +7,8 @@ using UnityEngine;
 public class Player : MonoBehaviour {
 
     // adding gravity float to the player object
-    float gravity = -20;
+    public float gravity = -20;
+    public float moveSpeed = 6;
     // reference to the player's velocity
     Vector3 velocity;
 
@@ -20,7 +21,18 @@ public class Player : MonoBehaviour {
 	}
 	
 	void Update () {
-        // applying the gravity to the velocity
+
+        // stops the player from accumulating gravity if not moving on the Y-axis
+        if(controller.collisions.above || controller.collisions.below)
+        {
+            velocity.y = 0;
+        }
+
+        // gets the raw input of the virtual axes, no smoothing filter
+        Vector2 input = new Vector2(Input.GetAxisRaw("Horizontal"), Input.GetAxisRaw("Vertical"));
+        //
+        velocity.x = input.x * moveSpeed;
+        // applying the gravity to the y-velocity
         velocity.y += gravity * Time.deltaTime;
         controller.Move(velocity * Time.deltaTime);
 	}

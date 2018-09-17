@@ -7,7 +7,7 @@ using UnityEngine;
 public class Controller2D : MonoBehaviour
 {
     public LayerMask collisionMask;
-    // adding a skinWidth float to make sure the raycast can still fire when the object is flat on the ground/platform
+    // adding a little inset for the boxcollider to make sure the raycast can still fire when the object is flat on the ground/platform
     const float boxInset = .015f;
 
     // defining the amount of rays fired horizontaly and vertically
@@ -21,6 +21,8 @@ public class Controller2D : MonoBehaviour
     BoxCollider2D collider;
     RaycastOrigins raycastOrigins;
 
+    public CollisionData collisions;
+
     void Start ()
     {
         // gets the BoxCollider2D component and stores it in the collider reference
@@ -31,9 +33,17 @@ public class Controller2D : MonoBehaviour
     public void Move(Vector3 velocity)
     {
         UpdateRaycastOrigins();
+        collisions.Reset();
         // handling the collision modifies velocity to not go through objects;
-        VerticalCollision(ref velocity);
-        HorizontalCollision(ref velocity);
+        if (velocity.x != 0)
+        {
+            HorizontalCollision(ref velocity);
+        }
+
+        if (velocity.y != 0)
+        {
+            VerticalCollision(ref velocity);
+        }
 
         // finally transform the object
         transform.Translate(velocity);
@@ -58,10 +68,10 @@ public class Controller2D : MonoBehaviour
             rayOrigin += Vector2.right * (verticalRaySpacing * i + velocity.x);
             // RaycastHit2D to detect objects along the path of the ray;
             // Physics2D.Raycast(Vector3 origin, Vector2 direction, distance, layermask);
+            // the collisionMask in this case is a 'platform layer' added in Unity
             RaycastHit2D hit = Physics2D.Raycast(rayOrigin, Vector2.up * directionY, rayLength, collisionMask);
             // DrawRay(Vector3 start, Vector3 dir, color of the rays)
-            Debug.DrawRay(raycastOrigins.bottomLeft + Vector2.right * verticalRaySpacing * i, Vector2.up * -2, Color.red);
-            Debug.DrawRay(raycastOrigins.topLeft + Vector2.right * verticalRaySpacing * i, Vector2.up * 2, Color.red);
+            Debug.DrawRay(rayOrigin, Vector2.up * directionY * rayLength, Color.red);
 
             if (hit)
             {
@@ -69,18 +79,34 @@ public class Controller2D : MonoBehaviour
                 // set the rayLength to the distance of the closest hit so that it wont set the rayLength to a ray hit with a larger distance when the loop iterates further.
                 // e.g. when it is over multiple platforms with different heights, it will collide with the highest platform and not with the lower platform that the raycast hits.
                 rayLength = hit.distance;
+                // if the object hit something and moves down, collisions.below is true;
+                collisions.below = directionY == -1;
+                // if the object hit something and moves up, collisions.above is true;
+                collisions.above = directionY == 1;
             }
         }
     }
-
+    // does the same as VerticalCollision, but then horizontally
     void HorizontalCollision(ref Vector3 velocity)
     {
-        // creating the horizontal raycasts
+        float directionX = Mathf.Sign(velocity.x);
+        float rayLength = Mathf.Abs(velocity.x) + boxInset;
+
         for (int i = 0; i < rayCountHorizontal; i++)
         {
-            // DrawRay(Vector3 start, Vector3 dir, color of the rays)
-            Debug.DrawRay(raycastOrigins.bottomLeft + Vector2.up * horizontalRaySpacing * i, Vector2.right * -2, Color.blue);
-            Debug.DrawRay(raycastOrigins.bottomRight + Vector2.up * horizontalRaySpacing * i, Vector2.right * 2, Color.blue);
+            Vector2 rayOrigin = (directionX == -1) ? raycastOrigins.bottomLeft : raycastOrigins.bottomRight;
+            rayOrigin += Vector2.up * (verticalRaySpacing * i);
+            RaycastHit2D hit = Physics2D.Raycast(rayOrigin, Vector2.right * directionX, rayLength, collisionMask);
+            Debug.DrawRay(rayOrigin, Vector2.right * directionX * rayLength, Color.blue);
+
+            if (hit)
+            {
+                velocity.x = (hit.distance - boxInset) * directionX;
+                rayLength = hit.distance;
+
+                collisions.left = directionX == -1;
+                collisions.right = directionX == 1;
+            }
         }
     }
 
@@ -117,5 +143,17 @@ public class Controller2D : MonoBehaviour
     {
         public Vector2 topLeft, topRight;
         public Vector2 bottomLeft, bottomRight;
+    }
+
+    public struct CollisionData
+    {
+        public bool above, below;
+        public bool left, right;
+
+        public void Reset()
+        {
+            above = below = false;
+            left = right = false;
+        }
     }
 }
